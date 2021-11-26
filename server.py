@@ -1,77 +1,161 @@
 from threading import Thread
+import re
 import socket
 
-# next create a socket object
-s = socket.socket()
-print("Socket successfully created")
+
+help_message = """
+to join a room, use  : -join; roomID
+to create a room, use: -create; roomID
+"""
 
 
-port = 12345
-
-s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-s.bind(("", port))
-print("socket binded to %s" % (port))
-
-# put the socket into listening mode
-s.listen(5)
-print("socket is listening")
+rooms = {}
 
 
-clients = {}
-paired_clients = {}
+def send_msg_in_room(conn, roomID, userName, msg):
+
+    room = rooms[roomID]
+    room = list(room)
+
+    # user connection
+    for user_conn in room:
+        if user_conn != conn:
+            user_conn.send(f"'{userName}' said: {msg}".encode())
+
+
+# remove connection from room
+def remove_from_room(roomID, conn):
+    room = rooms[roomID]
+    room = list(room)
+
+    room.remove(conn)
+    rooms[roomID] = room
+
+
+def create_room(roomID, conn):
+    if roomID in rooms.keys():
+        conn.send("room ID is exist. try another ID".encode())
+        return False
+
+    rooms[roomID] = [conn]
+    return True
+
+
+def add_to_room(roomID, conn):
+    
+    if roomID not in rooms.keys():
+        conn.send("room ID isn't exist. try another ID".encode())
+        return False
+
+    room = rooms[roomID]
+    room = list(room)
+
+    room.append(conn)
+    rooms[roomID] = room
+    return True
 
 def handle_client(new_connection, new_addr):
-    # receive host address from new connection
-    host_address = new_connection.recv(1024).decode()
-    
-    # print(clients)
-    # print(host_address)
-    if host_address not in clients.keys(): # host_address not exist in clients dict
-        # new_connection.send("shit".encode())
-        return
-    host_conn = clients[host_address]
-    
-    
-    if host_address not in paired_clients.keys():
-        paired_clients[new_addr] = host_address
-        paired_clients[host_address] = new_addr
-    elif paired_clients[host_address] != new_addr:
-        new_connection.send("sorry! the host is busy for now!".encode())
-        return
-        
-    
+
+    new_connection.send("Enter your name\n".encode())
+    user_name = new_connection.recv(1024).decode()
+    user_name = str(user_name).strip()
+    if not user_name:
+        user_name = "ananymous"
+
+    new_connection.send(
+        f"Welcome, join or create room with ID!\ntype -help for more info!\n".encode()
+    )
+
     while True:
-        received_msg = new_connection.recv(1024).decode()
 
-        # send back message to client. just for test
-        print("received from client "+ str(received_msg))
-        
-        
-        host_conn.send(f"send to host: {received_msg}".encode())
-        
+        # receive message from client to join or create room
+        user_msg = new_connection.recv(1024).decode()
+        user_msg = str(user_msg)
+
+        if "-help" in user_msg:
+            new_connection.send(help_message.encode())
+            continue
+
+        reg = "^(-join|-create)(; )(.+)"
+        reg_res = re.search(reg, user_msg)
+        if not reg_res:
+            new_connection.send("your input is not valid. try again!".encode())
+            continue
+
+        room_id = user_msg.split("; ")[1]
+        print(room_id)
+        print("roomid:    " + room_id)
+        if "-create" in user_msg:  # id not exist yet
+            created = create_room(roomID=room_id, conn=new_connection)
+            if not created:
+                continue
+        elif "-join" in user_msg:
+            added = add_to_room(roomID=room_id, conn=new_connection)
+            if not added:
+                continue
+
+        while True:
+            received_msg = new_connection.recv(1024).decode()
+
+            # send back message to client. just for test
+            print("received from client " + str(received_msg))
+
+            if received_msg == "-1":
+                received_msg = "goodBYE"
+                # say goodbye to all room members
+                send_msg_in_room(
+                    conn=new_connection,
+                    roomID=room_id,
+                    userName=user_name,
+                    msg=received_msg,
+                )
+                # remove from room
+                remove_from_room(roomID=room_id, conn=new_connection)
+                break
+
+            send_msg_in_room(
+                conn=new_connection,
+                roomID=room_id,
+                userName=user_name,
+                msg=received_msg,
+            )
+            
+        break #outer while loop
+
+def runner():
+    # next create a socket object
+    s = socket.socket()
+    print("Socket successfully created")
+
+    port = 12345
+
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+    s.bind(("", port))
+    print("socket binded to %s" % (port))
+
+    # put the socket into listening mode
+    s.listen(5)
+    print("socket is listening")
+
+    while True:
+
+        # Establish connection with client.
+        conn, addr = s.accept()
+
+        address = str(addr[1])
+
+        print("Got connection from", address)
+        # send a thank you message to the client. encoding to send byte type.
+
+        thread = Thread(
+            target=handle_client,
+            args=(
+                conn,
+                address,
+            ),
+        )
+        thread.start()
 
 
-
-while True:
-
-    # Establish connection with client.
-    conn, addr = s.accept()
-    
-    address = str(addr[1])
-    clients[address] = conn
-    
-    print("Got connection from", address)
-    # send a thank you message to the client. encoding to send byte type.
-    conn.send(f"Welcome, your address is {address} enter address of your pair".encode())
-    
-    thread = Thread(target = handle_client, args = (conn,address, ))
-    thread.start()
-
-
-   
-
-
-s.close()
-
-        
+runner()
