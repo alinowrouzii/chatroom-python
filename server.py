@@ -94,12 +94,17 @@ def handle_client(new_connection, new_addr):
             added = add_to_room(roomID=room_id, conn=new_connection)
             if not added:
                 continue
+            
+            new_connection.send(f"you are in {room_id} room now. type something!".encode())
+
+            
             send_msg_in_room(
                     conn=new_connection,
                     roomID=room_id,
                     userName=user_name,
                     msg=f"{user_name} joined us in {room_id} room",
                 )
+
         
         want_to_leave_room = False
         while True:
