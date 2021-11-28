@@ -34,7 +34,7 @@ def runner():
         
         s.send(text.encode())
 
-        if text == "-1":
+        if text == "-2":
             break
 
     s.close()

@@ -89,18 +89,32 @@ def handle_client(new_connection, new_addr):
             created = create_room(roomID=room_id, conn=new_connection)
             if not created:
                 continue
+            new_connection.send(f"your room is created successfully with {room_id} id".encode())
         elif "-join" in user_msg:
             added = add_to_room(roomID=room_id, conn=new_connection)
             if not added:
                 continue
-
+            send_msg_in_room(
+                    conn=new_connection,
+                    roomID=room_id,
+                    userName=user_name,
+                    msg=f"{user_name} joined us in {room_id} room",
+                )
+        
+        want_to_leave_room = False
         while True:
             received_msg = new_connection.recv(1024).decode()
 
             # send back message to client. just for test
             print("received from client " + str(received_msg))
 
-            if received_msg == "-1":
+            if received_msg == "-1": # -1 means user wants to leave room and create or join to new room
+                                     # but -2 means user wants to leave the chatroom! 
+                want_to_leave_room = True
+                
+            if received_msg == "-1" or received_msg == "-2":
+                
+                
                 received_msg = "goodBYE"
                 # say goodbye to all room members
                 send_msg_in_room(
@@ -119,7 +133,10 @@ def handle_client(new_connection, new_addr):
                 userName=user_name,
                 msg=received_msg,
             )
-            
+        
+        if want_to_leave_room:
+            continue # create or join to new room
+        
         break #outer while loop
 
 def runner():
