@@ -1,10 +1,14 @@
 #  chat-room using python
 
 ## to run a server :
-> python server.js
+```
+ python server.js
+```
 
 ## to run a client :
-> python client.py
+```
+python client.py
+```
 
 ### It prompts you to enter your name that will show to others when sending a message in the room
 
